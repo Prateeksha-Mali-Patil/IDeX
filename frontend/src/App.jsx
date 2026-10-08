@@ -1,81 +1,8 @@
 import { useState } from "react";
 import Dashboard from "./pages/Dashboard";
 import Investigation from "./pages/Investigation";
+import IdentityGraph from "./pages/IdentityGraph";
 import "./App.css";
-
-function IdentityGraph() {
-  return (
-    <div className="console-content">
-
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">NETWORK ANALYSIS</p>
-          <h1>Identity Graph</h1>
-          <p className="page-subtitle">
-            Visualize relationships between identities, devices and IP addresses
-          </p>
-        </div>
-      </div>
-
-      <div className="graph-stats">
-        <div>
-          <strong>1,284</strong>
-          <span>IDENTITIES</span>
-        </div>
-
-        <div>
-          <strong>842</strong>
-          <span>DEVICES</span>
-        </div>
-
-        <div>
-          <strong>617</strong>
-          <span>IP ADDRESSES</span>
-        </div>
-
-        <div>
-          <strong>3,921</strong>
-          <span>RELATIONSHIPS</span>
-        </div>
-      </div>
-
-      <div className="big-graph">
-
-        <div className="graph-line line-1"></div>
-        <div className="graph-line line-2"></div>
-        <div className="graph-line line-3"></div>
-        <div className="graph-line line-4"></div>
-
-        <div className="graph-node center-node">
-          <strong>ID-047</strong>
-          <span>IDENTITY</span>
-        </div>
-
-        <div className="graph-node device-node">
-          <strong>DEV-8841</strong>
-          <span>DEVICE</span>
-        </div>
-
-        <div className="graph-node ip-node">
-          <strong>IP-24.91</strong>
-          <span>IP ADDRESS</span>
-        </div>
-
-        <div className="graph-node identity-node">
-          <strong>ID-025</strong>
-          <span>IDENTITY</span>
-        </div>
-
-        <div className="graph-node location-node">
-          <strong>BENGALURU</strong>
-          <span>LOCATION</span>
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
 
 function RiskEvents() {
   const events = [
@@ -87,7 +14,6 @@ function RiskEvents() {
 
   return (
     <div className="console-content">
-
       <div className="page-header">
         <div>
           <p className="eyebrow">SECURITY EVENTS</p>
@@ -99,7 +25,6 @@ function RiskEvents() {
       </div>
 
       <div className="events-table">
-
         <div className="events-header">
           <span>EVENT ID</span>
           <span>IDENTITY</span>
@@ -121,7 +46,6 @@ function RiskEvents() {
             <span>{event[5]}</span>
           </div>
         ))}
-
       </div>
     </div>
   );
@@ -129,16 +53,45 @@ function RiskEvents() {
 
 function AuditLogs() {
   const logs = [
-    ["19:04:21", "IDeX Engine", "Risk analysis completed", "ID-047", "BLOCK / REVIEW"],
-    ["19:03:48", "Analyst", "Investigation opened", "ID-047", "SUCCESS"],
-    ["19:02:16", "IDeX Engine", "Identity relationship detected", "DEV-8841", "FLAGGED"],
-    ["19:01:42", "Security Plugin", "Authentication event received", "EVT-90420", "SUCCESS"],
-    ["18:59:31", "IDeX Engine", "Behaviour anomaly detected", "ID-083", "FLAGGED"],
+    [
+      "19:04:21",
+      "IDeX Engine",
+      "Risk analysis completed",
+      "ID-047",
+      "BLOCK / REVIEW",
+    ],
+    [
+      "19:03:48",
+      "Analyst",
+      "Investigation opened",
+      "ID-047",
+      "SUCCESS",
+    ],
+    [
+      "19:02:16",
+      "IDeX Engine",
+      "Identity relationship detected",
+      "DEV-8841",
+      "FLAGGED",
+    ],
+    [
+      "19:01:42",
+      "Security Plugin",
+      "Authentication event received",
+      "EVT-90420",
+      "SUCCESS",
+    ],
+    [
+      "18:59:31",
+      "IDeX Engine",
+      "Behaviour anomaly detected",
+      "ID-083",
+      "FLAGGED",
+    ],
   ];
 
   return (
     <div className="console-content">
-
       <div className="page-header">
         <div>
           <p className="eyebrow">SYSTEM ACTIVITY</p>
@@ -150,7 +103,6 @@ function AuditLogs() {
       </div>
 
       <div className="audit-table">
-
         <div className="audit-header">
           <span>TIME</span>
           <span>ACTOR</span>
@@ -168,15 +120,12 @@ function AuditLogs() {
             <span>{log[4]}</span>
           </div>
         ))}
-
       </div>
-
     </div>
   );
 }
 
 function App() {
-
   const [activePage, setActivePage] = useState("dashboard");
   const [selectedIdentity, setSelectedIdentity] = useState("ID-047");
 
@@ -186,7 +135,6 @@ function App() {
   };
 
   const renderPage = () => {
-
     if (activePage === "dashboard") {
       return (
         <Dashboard
@@ -204,7 +152,11 @@ function App() {
     }
 
     if (activePage === "graph") {
-      return <IdentityGraph />;
+      return (
+        <IdentityGraph
+          identityId={selectedIdentity}
+        />
+      );
     }
 
     if (activePage === "events") {

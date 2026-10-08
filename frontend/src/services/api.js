@@ -1,3 +1,4 @@
+
 import axios from "axios";
 
 const API_BASE_URL = "http://localhost:5000/api";
@@ -9,34 +10,66 @@ const api = axios.create({
   },
 });
 
-// Analyze a new security event
+// =========================================================
+// AUTH
+// =========================================================
+
+export const login = async (email, password) => {
+  const response = await api.post("/auth/login", {
+    email,
+    password,
+  });
+
+  return response.data;
+};
+
+export const setAuthToken = (token) => {
+  if (token) {
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common["Authorization"];
+  }
+};
+
+// =========================================================
+// IDENTITIES
+// =========================================================
+
+export const getIdentities = async () => {
+  const response = await api.get("/identities");
+  return response.data;
+};
+
+export const getIdentity = async (identityId) => {
+  const response = await api.get(`/identities/${identityId}`);
+  return response.data;
+};
+
+// =========================================================
+// RISK EVENTS
+// =========================================================
+
 export const analyzeEvent = async (eventData) => {
   const response = await api.post("/events/analyze", eventData);
   return response.data;
 };
 
-// Dashboard data
-export const getDashboard = async () => {
-  const response = await api.get("/dashboard");
+export const getEvents = async () => {
+  const response = await api.get("/events");
   return response.data;
 };
 
-// Identity details
-export const getIdentity = async (id) => {
-  const response = await api.get(`/identities/${id}`);
+// =========================================================
+// AUDIT LOGS
+// =========================================================
+
+export const getAuditLogs = async () => {
+  const response = await api.get("/audit-logs");
   return response.data;
 };
 
-// Investigation / analysis details
-export const getAnalysis = async (id) => {
-  const response = await api.get(`/analysis/${id}`);
-  return response.data;
-};
-
-// Relationship graph
-export const getGraph = async (id) => {
-  const response = await api.get(`/graph/${id}`);
-  return response.data;
-};
+// =========================================================
+// DEFAULT API
+// =========================================================
 
 export default api;

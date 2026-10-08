@@ -1,77 +1,59 @@
+import { useEffect, useState } from "react";
+import { getIdentity } from "../services/api";
+
 function Investigation({ identityId }) {
-  const identities = {
-    "ID-047": {
-      score: 91,
-      level: "HIGH",
-      decision: "BLOCK / REVIEW",
-      device: "DEV-8841",
-      ip: "24.91.xx.xx",
-      location: "Bengaluru",
-      indicators: [
-        {
-          name: "Behaviour Anomaly",
-          severity: "HIGH",
-          evidence: "Login behaviour differs significantly from the identity's normal pattern."
-        },
-        {
-          name: "Suspicious IP",
-          severity: "HIGH",
-          evidence: "IP address is associated with multiple identities."
-        },
-        {
-          name: "Login Velocity",
-          severity: "MEDIUM",
-          evidence: "Multiple authentication attempts detected within a short time."
-        },
-        {
-          name: "New Device",
-          severity: "MEDIUM",
-          evidence: "Identity accessed from a previously unseen device."
-        }
-      ]
-    },
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-    "ID-025": {
-      score: 56,
-      level: "MEDIUM",
-      decision: "CHALLENGE",
-      device: "DEV-4421",
-      ip: "103.21.xx.xx",
-      location: "Bengaluru",
-      indicators: [
-        {
-          name: "Login Velocity",
-          severity: "MEDIUM",
-          evidence: "Higher than normal authentication frequency."
-        },
-        {
-          name: "New Device",
-          severity: "LOW",
-          evidence: "New device detected for this identity."
-        }
-      ]
-    },
+  useEffect(() => {
+    const loadIdentity = async () => {
+      if (!identityId) {
+        setError("No Identity ID selected.");
+        setLoading(false);
+        return;
+      }
 
-    "ID-001": {
-      score: 18,
-      level: "LOW",
-      decision: "ALLOW",
-      device: "DEV-1022",
-      ip: "49.36.xx.xx",
-      location: "Bengaluru",
-      indicators: [
-        {
-          name: "Normal Behaviour",
-          severity: "LOW",
-          evidence: "Authentication behaviour matches the normal identity profile."
-        }
-      ]
-    }
-  };
+      try {
+        setLoading(true);
+        setError("");
 
-  const data = identities[identityId];
+        const identity = await getIdentity(identityId);
+        setData(identity);
+      } catch (err) {
+        console.error("Failed to load identity:", err);
 
-  if (!data) {
+        setData(null);
+        setError(
+          err.response?.data?.message ||
+            "Unable to load identity data from the backend."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadIdentity();
+  }, [identityId]);
+
+  if (loading) {
+    return (
+      <div className="console-content">
+        <div className="page-header">
+          <div>
+            <p className="eyebrow">IDENTITY INVESTIGATION</p>
+            <h1>Loading...</h1>
+            <p className="page-subtitle">
+              Loading identity risk analysis for{" "}
+              <strong>{identityId}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
     return (
       <div className="console-content">
         <div className="page-header">
@@ -79,26 +61,58 @@ function Investigation({ identityId }) {
             <p className="eyebrow">IDENTITY INVESTIGATION</p>
             <h1>Identity Not Found</h1>
             <p className="page-subtitle">
-              No mock investigation data available for{" "}
+              Unable to load investigation data for{" "}
               <strong>{identityId}</strong>
             </p>
           </div>
         </div>
 
         <div className="not-found-card">
-          <h2>Identity ID not found</h2>
-          <p>
-            Try one of the available demo identities:
-          </p>
-
-          <div className="available-ids">
-            <span>ID-047</span>
-            <span>ID-025</span>
-            <span>ID-001</span>
-          </div>
+          <h2>Unable to load identity</h2>
+          <p>{error || "No identity data was returned by the backend."}</p>
         </div>
       </div>
     );
+  }
+
+  // Backend data
+  const indicators = data.indicators || [];
+  const relationships = data.relationships || [];
+
+  // Device from Prisma relation
+  const device =
+    data.devices?.[0]?.device?.id ||
+    data.devices?.[0]?.deviceId ||
+    "N/A";
+
+  // IP from Prisma relation
+  const ip =
+    data.ips?.[0]?.ip?.address ||
+    data.ips?.[0]?.ipId ||
+    "N/A";
+
+  // Calculate risk score from indicators
+  const score = indicators.reduce(
+    (total, indicator) => total + (indicator.score || 0),
+    0
+  );
+
+  // Determine risk level
+  let level = "LOW";
+
+  if (score >= 60) {
+    level = "HIGH";
+  } else if (score >= 30) {
+    level = "MEDIUM";
+  }
+
+  // Determine decision
+  let decision = "ALLOW";
+
+  if (level === "HIGH") {
+    decision = "BLOCK";
+  } else if (level === "MEDIUM") {
+    decision = "CHALLENGE_REVIEW";
   }
 
   return (
@@ -108,29 +122,33 @@ function Investigation({ identityId }) {
       <div className="page-header">
         <div>
           <p className="eyebrow">IDENTITY INVESTIGATION</p>
-          <h1>{identityId}</h1>
+
+          <h1>{data.id}</h1>
+
           <p className="page-subtitle">
             Identity risk analysis and relationship investigation
           </p>
         </div>
 
-        <div className={`investigation-decision ${data.level.toLowerCase()}`}>
-          {data.decision}
+        <div
+          className={`investigation-decision ${level.toLowerCase()}`}
+        >
+          {decision}
         </div>
       </div>
 
       {/* RISK OVERVIEW */}
       <div className="investigation-overview">
 
-        <div className={`big-risk-card ${data.level.toLowerCase()}`}>
+        <div className={`big-risk-card ${level.toLowerCase()}`}>
           <span>RISK SCORE</span>
 
           <div className="big-risk-score">
-            {data.score}
+            {score}
             <small>/100</small>
           </div>
 
-          <strong>{data.level} RISK</strong>
+          <strong>{level} RISK</strong>
         </div>
 
         <div className="identity-details-card">
@@ -140,61 +158,97 @@ function Investigation({ identityId }) {
 
             <div>
               <span>IDENTITY ID</span>
-              <strong>{identityId}</strong>
+              <strong>{data.id}</strong>
             </div>
 
             <div>
               <span>DEVICE</span>
-              <strong>{data.device}</strong>
+              <strong>{device}</strong>
             </div>
 
             <div>
               <span>IP ADDRESS</span>
-              <strong>{data.ip}</strong>
+              <strong>{ip}</strong>
             </div>
 
             <div>
-              <span>LOCATION</span>
-              <strong>{data.location}</strong>
+              <span>STATUS</span>
+              <strong>{data.status}</strong>
             </div>
 
           </div>
         </div>
-
       </div>
 
-      {/* INDICATORS */}
+      {/* RISK INDICATORS */}
       <div className="dashboard-section">
         <div className="section-title">
           <h2>Risk Indicators</h2>
-          <span>{data.indicators.length} DETECTED</span>
+
+          <span>
+            {indicators.length} DETECTED
+          </span>
         </div>
 
         <div className="investigation-indicators">
 
-          {data.indicators.map((indicator, index) => (
-            <div className="investigation-indicator" key={index}>
+          {indicators.length > 0 ? (
+            indicators.map((indicator) => (
+              <div
+                className="investigation-indicator"
+                key={indicator.id}
+              >
+                <div className="indicator-top">
+
+                  <h3>{indicator.name}</h3>
+
+                  <span
+                    className={`severity ${(
+                      indicator.severity || "MEDIUM"
+                    ).toLowerCase()}`}
+                  >
+                    {indicator.severity}
+                  </span>
+
+                </div>
+
+                <p>
+                  {indicator.evidence ||
+                    "No evidence description available."}
+                </p>
+
+                <small>
+                  Risk contribution: +{indicator.score}
+                </small>
+              </div>
+            ))
+          ) : (
+            <div className="investigation-indicator">
 
               <div className="indicator-top">
-                <h3>{indicator.name}</h3>
+                <h3>No risk indicators</h3>
 
-                <span className={`severity ${indicator.severity.toLowerCase()}`}>
-                  {indicator.severity}
+                <span className="severity low">
+                  LOW
                 </span>
               </div>
 
-              <p>{indicator.evidence}</p>
+              <p>
+                No active risk indicators were returned for this identity.
+              </p>
 
             </div>
-          ))}
+          )}
 
         </div>
       </div>
 
-      {/* RELATIONSHIPS */}
+      {/* IDENTITY RELATIONSHIPS */}
       <div className="dashboard-section">
+
         <div className="section-title">
           <h2>Identity Relationships</h2>
+
           <span>NETWORK ANALYSIS</span>
         </div>
 
@@ -202,22 +256,22 @@ function Investigation({ identityId }) {
 
           <div>
             <span>CONNECTED DEVICE</span>
-            <strong>{data.device}</strong>
+            <strong>{device}</strong>
           </div>
 
           <div>
             <span>IP ADDRESS</span>
-            <strong>{data.ip}</strong>
-          </div>
-
-          <div>
-            <span>LOCATION</span>
-            <strong>{data.location}</strong>
+            <strong>{ip}</strong>
           </div>
 
           <div>
             <span>RELATED IDENTITIES</span>
-            <strong>3</strong>
+            <strong>{relationships.length}</strong>
+          </div>
+
+          <div>
+            <span>ACCOUNT STATUS</span>
+            <strong>{data.status}</strong>
           </div>
 
         </div>

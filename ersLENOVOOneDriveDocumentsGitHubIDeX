@@ -1,0 +1,559 @@
+[1mdiff --git a/backend/src/server.js b/backend/src/server.js[m
+[1mindex 314791a..47ebfbb 100644[m
+[1m--- a/backend/src/server.js[m
+[1m+++ b/backend/src/server.js[m
+[36m@@ -1,11 +1,15 @@[m
+ const express = require("express");[m
+ const cors = require("cors");[m
+[32m+[m[32mconst axios = require("axios");[m
+ require("dotenv").config();[m
+ [m
+ const prisma = require("./lib/prisma");[m
+ [m
+ const app = express();[m
+ [m
+[32m+[m[32mconst ML_SERVICE_URL =[m
+[32m+[m[32m  process.env.IDEX_RISK_ENGINE_URL || "http://localhost:8000";[m
+[32m+[m
+ app.use(cors());[m
+ app.use(express.json());[m
+ [m
+[36m@@ -33,7 +37,7 @@[m [mapp.get("/db-test", async (req, res) => {[m
+       result: safeResult[m
+     });[m
+   } catch (error) {[m
+[31m-    console.error("Database connection failed:", error);[m
+[32m+[m[32m    console.error("Database connection failed:", error.message);[m
+ [m
+     res.status(500).json({[m
+       status: "ERROR",[m
+[36m@@ -42,6 +46,92 @@[m [mapp.get("/db-test", async (req, res) => {[m
+   }[m
+ });[m
+ [m
+[32m+[m[32m// Get all identities[m
+[32m+[m[32mapp.get("/api/identities", async (req, res) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const identities = await prisma.identity.findMany();[m
+[32m+[m
+[32m+[m[32m    res.json(identities);[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error("Failed to fetch identities:", error.message);[m
+[32m+[m
+[32m+[m[32m    res.status(500).json({[m
+[32m+[m[32m      message: "Failed to fetch identities"[m
+[32m+[m[32m    });[m
+[32m+[m[32m  }[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32m// Get a specific identity with related investigation data[m
+[32m+[m[32mapp.get("/api/identities/:identityId", async (req, res) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const { identityId } = req.params;[m
+[32m+[m
+[32m+[m[32m    const identity = await prisma.identity.findUnique({[m
+[32m+[m[32m      where: {[m
+[32m+[m[32m        id: identityId[m
+[32m+[m[32m      },[m
+[32m+[m[32m      include: {[m
+[32m+[m[32m        devices: {[m
+[32m+[m[32m          include: {[m
+[32m+[m[32m            device: true[m
+[32m+[m[32m          }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        ips: {[m
+[32m+[m[32m          include: {[m
+[32m+[m[32m            ip: true[m
+[32m+[m[32m          }[m
+[32m+[m[32m        },[m
+[32m+[m[32m        indicators: true,[m
+[32m+[m[32m        relationships: true[m
+[32m+[m[32m      }[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    if (!identity) {[m
+[32m+[m[32m      return res.status(404).json({[m
+[32m+[m[32m        message: "Identity not found"[m
+[32m+[m[32m      });[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    res.json(identity);[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error("Failed to fetch identity:", error.message);[m
+[32m+[m
+[32m+[m[32m    res.status(500).json({[m
+[32m+[m[32m      message: "Failed to fetch identity"[m
+[32m+[m[32m    });[m
+[32m+[m[32m  }[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32m// Send security event to FastAPI risk engine[m
+[32m+[m[32mapp.post("/api/events/analyze", async (req, res) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const eventData = req.body;[m
+[32m+[m
+[32m+[m[32m    const response = await axios.post([m
+[32m+[m[32m      `${ML_SERVICE_URL}/analyze`,[m
+[32m+[m[32m      eventData,[m
+[32m+[m[32m      {[m
+[32m+[m[32m        headers: {[m
+[32m+[m[32m          "Content-Type": "application/json"[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m[32m    );[m
+[32m+[m
+[32m+[m[32m    res.json(response.data);[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error([m
+[32m+[m[32m      "Risk engine request failed:",[m
+[32m+[m[32m      error.response?.data || error.message[m
+[32m+[m[32m    );[m
+[32m+[m
+[32m+[m[32m    res.status(502).json({[m
+[32m+[m[32m      status: "ERROR",[m
+[32m+[m[32m      message: "Risk analysis service unavailable",[m
+[32m+[m[32m      details: error.response?.data || error.message[m
+[32m+[m[32m    });[m
+[32m+[m[32m  }[m
+[32m+[m[32m});[m
+[32m+[m
+ const PORT = process.env.PORT || 5000;[m
+ [m
+ app.listen(PORT, () => {[m
+[1mdiff --git a/frontend/src/pages/Investigation.jsx b/frontend/src/pages/Investigation.jsx[m
+[1mindex 1ebfb04..3f95715 100644[m
+[1m--- a/frontend/src/pages/Investigation.jsx[m
+[1m+++ b/frontend/src/pages/Investigation.jsx[m
+[36m@@ -1,77 +1,59 @@[m
+[32m+[m[32mimport { useEffect, useState } from "react";[m
+[32m+[m[32mimport { getIdentity } from "../services/api";[m
+[32m+[m
+ function Investigation({ identityId }) {[m
+[31m-  const identities = {[m
+[31m-    "ID-047": {[m
+[31m-      score: 91,[m
+[31m-      level: "HIGH",[m
+[31m-      decision: "BLOCK / REVIEW",[m
+[31m-      device: "DEV-8841",[m
+[31m-      ip: "24.91.xx.xx",[m
+[31m-      location: "Bengaluru",[m
+[31m-      indicators: [[m
+[31m-        {[m
+[31m-          name: "Behaviour Anomaly",[m
+[31m-          severity: "HIGH",[m
+[31m-          evidence: "Login behaviour differs significantly from the identity's normal pattern."[m
+[31m-        },[m
+[31m-        {[m
+[31m-          name: "Suspicious IP",[m
+[31m-          severity: "HIGH",[m
+[31m-          evidence: "IP address is associated with multiple identities."[m
+[31m-        },[m
+[31m-        {[m
+[31m-          name: "Login Velocity",[m
+[31m-          severity: "MEDIUM",[m
+[31m-          evidence: "Multiple authentication attempts detected within a short time."[m
+[31m-        },[m
+[31m-        {[m
+[31m-          name: "New Device",[m
+[31m-          severity: "MEDIUM",[m
+[31m-          evidence: "Identity accessed from a previously unseen device."[m
+[31m-        }[m
+[31m-      ][m
+[31m-    },[m
+[31m-[m
+[31m-    "ID-025": {[m
+[31m-      score: 56,[m
+[31m-      level: "MEDIUM",[m
+[31m-      decision: "CHALLENGE",[m
+[31m-      device: "DEV-4421",[m
+[31m-      ip: "103.21.xx.xx",[m
+[31m-      location: "Bengaluru",[m
+[31m-      indicators: [[m
+[31m-        {[m
+[31m-          name: "Login Velocity",[m
+[31m-          severity: "MEDIUM",[m
+[31m-          evidence: "Higher than normal authentication frequency."[m
+[31m-        },[m
+[31m-        {[m
+[31m-          name: "New Device",[m
+[31m-          severity: "LOW",[m
+[31m-          evidence: "New device detected for this identity."[m
+[31m-        }[m
+[31m-      ][m
+[31m-    },[m
+[31m-[m
+[31m-    "ID-001": {[m
+[31m-      score: 18,[m
+[31m-      level: "LOW",[m
+[31m-      decision: "ALLOW",[m
+[31m-      device: "DEV-1022",[m
+[31m-      ip: "49.36.xx.xx",[m
+[31m-      location: "Bengaluru",[m
+[31m-      indicators: [[m
+[31m-        {[m
+[31m-          name: "Normal Behaviour",[m
+[31m-          severity: "LOW",[m
+[31m-          evidence: "Authentication behaviour matches the normal identity profile."[m
+[31m-        }[m
+[31m-      ][m
+[31m-    }[m
+[31m-  };[m
+[31m-[m
+[31m-  const data = identities[identityId];[m
+[31m-[m
+[31m-  if (!data) {[m
+[32m+[m[32m  const [data, setData] = useState(null);[m
+[32m+[m[32m  const [loading, setLoading] = useState(true);[m
+[32m+[m[32m  const [error, setError] = useState("");[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    const loadIdentity = async () => {[m
+[32m+[m[32m      if (!identityId) {[m
+[32m+[m[32m        setError("No Identity ID selected.");[m
+[32m+[m[32m        setLoading(false);[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        setLoading(true);[m
+[32m+[m[32m        setError("");[m
+[32m+[m
+[32m+[m[32m        const identity = await getIdentity(identityId);[m
+[32m+[m[32m        setData(identity);[m
+[32m+[m[32m      } catch (err) {[m
+[32m+[m[32m        console.error("Failed to load identity:", err);[m
+[32m+[m
+[32m+[m[32m        setData(null);[m
+[32m+[m[32m        setError([m
+[32m+[m[32m          err.response?.data?.message ||[m
+[32m+[m[32m            "Unable to load identity data from the backend."[m
+[32m+[m[32m        );[m
+[32m+[m[32m      } finally {[m
+[32m+[m[32m        setLoading(false);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    loadIdentity();[m
+[32m+[m[32m  }, [identityId]);[m
+[32m+[m
+[32m+[m[32m  if (loading) {[m
+[32m+[m[32m    return ([m
+[32m+[m[32m      <div className="console-content">[m
+[32m+[m[32m        <div className="page-header">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <p className="eyebrow">IDENTITY INVESTIGATION</p>[m
+[32m+[m[32m            <h1>Loading...</h1>[m
+[32m+[m[32m            <p className="page-subtitle">[m
+[32m+[m[32m              Loading identity risk analysis for{" "}[m
+[32m+[m[32m              <strong>{identityId}</strong>[m
+[32m+[m[32m            </p>[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+[32m+[m[32m    );[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  if (error || !data) {[m
+     return ([m
+       <div className="console-content">[m
+         <div className="page-header">[m
+[36m@@ -79,28 +61,60 @@[m [mfunction Investigation({ identityId }) {[m
+             <p className="eyebrow">IDENTITY INVESTIGATION</p>[m
+             <h1>Identity Not Found</h1>[m
+             <p className="page-subtitle">[m
+[31m-              No mock investigation data available for{" "}[m
+[32m+[m[32m              Unable to load investigation data for{" "}[m
+               <strong>{identityId}</strong>[m
+             </p>[m
+           </div>[m
+         </div>[m
+ [m
+         <div className="not-found-card">[m
+[31m-          <h2>Identity ID not found</h2>[m
+[31m-          <p>[m
+[31m-            Try one of the available demo identities:[m
+[31m-          </p>[m
+[31m-[m
+[31m-          <div className="available-ids">[m
+[31m-            <span>ID-047</span>[m
+[31m-            <span>ID-025</span>[m
+[31m-            <span>ID-001</span>[m
+[31m-          </div>[m
+[32m+[m[32m          <h2>Unable to load identity</h2>[m
+[32m+[m[32m          <p>{error || "No identity data was returned by the backend."}</p>[m
+         </div>[m
+       </div>[m
+     );[m
+   }[m
+ [m
+[32m+[m[32m  // Backend data[m
+[32m+[m[32m  const indicators = data.indicators || [];[m
+[32m+[m[32m  const relationships = data.relationships || [];[m
+[32m+[m
+[32m+[m[32m  // Device from Prisma relation[m
+[32m+[m[32m  const device =[m
+[32m+[m[32m    data.devices?.[0]?.device?.id ||[m
+[32m+[m[32m    data.devices?.[0]?.deviceId ||[m
+[32m+[m[32m    "N/A";[m
+[32m+[m
+[32m+[m[32m  // IP from Prisma relation[m
+[32m+[m[32m  const ip =[m
+[32m+[m[32m    data.ips?.[0]?.ip?.address ||[m
+[32m+[m[32m    data.ips?.[0]?.ipId ||[m
+[32m+[m[32m    "N/A";[m
+[32m+[m
+[32m+[m[32m  // Calculate risk score from indicators[m
+[32m+[m[32m  const score = indicators.reduce([m
+[32m+[m[32m    (total, indicator) => total + (indicator.score || 0),[m
+[32m+[m[32m    0[m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  // Determine risk level[m
+[32m+[m[32m  let level = "LOW";[m
+[32m+[m
+[32m+[m[32m  if (score >= 60) {[m
+[32m+[m[32m    level = "HIGH";[m
+[32m+[m[32m  } else if (score >= 30) {[m
+[32m+[m[32m    level = "MEDIUM";[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  // Determine decision[m
+[32m+[m[32m  let decision = "ALLOW";[m
+[32m+[m
+[32m+[m[32m  if (level === "HIGH") {[m
+[32m+[m[32m    decision = "BLOCK";[m
+[32m+[m[32m  } else if (level === "MEDIUM") {[m
+[32m+[m[32m    decision = "CHALLENGE_REVIEW";[m
+[32m+[m[32m  }[m
+[32m+[m
+   return ([m
+     <div className="console-content">[m
+ [m
+[36m@@ -108,29 +122,33 @@[m [mfunction Investigation({ identityId }) {[m
+       <div className="page-header">[m
+         <div>[m
+           <p className="eyebrow">IDENTITY INVESTIGATION</p>[m
+[31m-          <h1>{identityId}</h1>[m
+[32m+[m
+[32m+[m[32m          <h1>{data.id}</h1>[m
+[32m+[m
+           <p className="page-subtitle">[m
+             Identity risk analysis and relationship investigation[m
+           </p>[m
+         </div>[m
+ [m
+[31m-        <div className={`investigation-decision ${data.level.toLowerCase()}`}>[m
+[31m-          {data.decision}[m
+[32m+[m[32m        <div[m
+[32m+[m[32m          className={`investigation-decision ${level.toLowerCase()}`}[m
+[32m+[m[32m        >[m
+[32m+[m[32m          {decision}[m
+         </div>[m
+       </div>[m
+ [m
+       {/* RISK OVERVIEW */}[m
+       <div className="investigation-overview">[m
+ [m
+[31m-        <div className={`big-risk-card ${data.level.toLowerCase()}`}>[m
+[32m+[m[32m        <div className={`big-risk-card ${level.toLowerCase()}`}>[m
+           <span>RISK SCORE</span>[m
+ [m
+           <div className="big-risk-score">[m
+[31m-            {data.score}[m
+[32m+[m[32m            {score}[m
+             <small>/100</small>[m
+           </div>[m
+ [m
+[31m-          <strong>{data.level} RISK</strong>[m
+[32m+[m[32m          <strong>{level} RISK</strong>[m
+         </div>[m
+ [m
+         <div className="identity-details-card">[m
+[36m@@ -140,61 +158,97 @@[m [mfunction Investigation({ identityId }) {[m
+ [m
+             <div>[m
+               <span>IDENTITY ID</span>[m
+[31m-              <strong>{identityId}</strong>[m
+[32m+[m[32m              <strong>{data.id}</strong>[m
+             </div>[m
+ [m
+             <div>[m
+               <span>DEVICE</span>[m
+[31m-              <strong>{data.device}</strong>[m
+[32m+[m[32m              <strong>{device}</strong>[m
+             </div>[m
+ [m
+             <div>[m
+               <span>IP ADDRESS</span>[m
+[31m-              <strong>{data.ip}</strong>[m
+[32m+[m[32m              <strong>{ip}</strong>[m
+             </div>[m
+ [m
+             <div>[m
+[31m-              <span>LOCATION</span>[m
+[31m-              <strong>{data.location}</strong>[m
+[32m+[m[32m              <span>STATUS</span>[m
+[32m+[m[32m              <strong>{data.status}</strong>[m
+             </div>[m
+ [m
+           </div>[m
+         </div>[m
+[31m-[m
+       </div>[m
+ [m
+[31m-      {/* INDICATORS */}[m
+[32m+[m[32m      {/* RISK INDICATORS */}[m
+       <div className="dashboard-section">[m
+         <div className="section-title">[m
+           <h2>Risk Indicators</h2>[m
+[31m-          <span>{data.indicators.length} DETECTED</span>[m
+[32m+[m
+[32m+[m[32m          <span>[m
+[32m+[m[32m            {indicators.length} DETECTED[m
+[32m+[m[32m          </span>[m
+         </div>[m
+ [m
+         <div className="investigation-indicators">[m
+ [m
+[31m-          {data.indicators.map((indicator, index) => ([m
+[31m-            <div className="investigation-indicator" key={index}>[m
+[32m+[m[32m          {indicators.length > 0 ? ([m
+[32m+[m[32m            indicators.map((indicator) => ([m
+[32m+[m[32m              <div[m
+[32m+[m[32m                className="investigation-indicator"[m
+[32m+[m[32m                key={indicator.id}[m
+[32m+[m[32m              >[m
+[32m+[m[32m                <div className="indicator-top">[m
+[32m+[m
+[32m+[m[32m                  <h3>{indicator.name}</h3>[m
+[32m+[m
+[32m+[m[32m                  <span[m
+[32m+[m[32m                    className={`severity ${([m
+[32m+[m[32m                      indicator.severity || "MEDIUM"[m
+[32m+[m[32m                    ).toLowerCase()}`}[m
+[32m+[m[32m                  >[m
+[32m+[m[32m                    {indicator.severity}[m
+[32m+[m[32m                  </span>[m
+[32m+[m
+[32m+[m[32m                </div>[m
+[32m+[m
+[32m+[m[32m                <p>[m
+[32m+[m[32m                  {indicator.evidence ||[m
+[32m+[m[32m                    "No evidence description available."}[m
+[32m+[m[32m                </p>[m
+[32m+[m
+[32m+[m[32m                <small>[m
+[32m+[m[32m                  Risk contribution: +{indicator.score}[m
+[32m+[m[32m                </small>[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            ))[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            <div className="investigation-indicator">[m
+ [m
+               <div className="indicator-top">[m
+[31m-                <h3>{indicator.name}</h3>[m
+[32m+[m[32m                <h3>No risk indicators</h3>[m
+ [m
+[31m-                <span className={`severity ${indicator.severity.toLowerCase()}`}>[m
+[31m-                  {indicator.severity}[m
+[32m+[m[32m                <span className="severity low">[m
+[32m+[m[32m                  LOW[m
+                 </span>[m
+               </div>[m
+ [m
+[31m-              <p>{indicator.evidence}</p>[m
+[32m+[m[32m              <p>[m
+[32m+[m[32m                No active risk indicators were returned for this identity.[m
+[32m+[m[32m              </p>[m
+ [m
+             </div>[m
+[31m-          ))}[m
+[32m+[m[32m          )}[m
+ [m
+         </div>[m
+       </div>[m
+ [m
+[31m-      {/* RELATIONSHIPS */}[m
+[32m+[m[32m      {/* IDENTITY RELATIONSHIPS */}[m
+       <div className="dashboard-section">[m
+[32m+[m
+         <div className="section-title">[m
+           <h2>Identity Relationships</h2>[m
+[32m+[m
+           <span>NETWORK ANALYSIS</span>[m
+         </div>[m
+ [m
+[36m@@ -202,22 +256,22 @@[m [mfunction Investigation({ identityId }) {[m
+ [m
+           <div>[m
+             <span>CONNECTED DEVICE</span>[m
+[31m-            <strong>{data.device}</strong>[m
+[32m+[m[32m            <strong>{device}</strong>[m
+           </div>[m
+ [m
+           <div>[m
+             <span>IP ADDRESS</span>[m
+[31m-            <strong>{data.ip}</strong>[m
+[32m+[m[32m            <strong>{ip}</strong>[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <span>LOCATION</span>[m
+[31m-            <strong>{data.location}</strong>[m
+[32m+[m[32m            <span>RELATED IDENTITIES</span>[m
+[32m+[m[32m            <strong>{relationships.length}</strong>[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <span>RELATED IDENTITIES</span>[m
+[31m-            <strong>3</strong>[m
+[32m+[m[32m            <span>ACCOUNT STATUS</span>[m
+[32m+[m[32m            <strong>{data.status}</strong>[m
+           </div>[m
+ [m
+         </div>[m
+[1mdiff --git a/frontend/src/services/api.js b/frontend/src/services/api.js[m
+[1mindex 6f520ef..8f54539 100644[m
+[1m--- a/frontend/src/services/api.js[m
+[1m+++ b/frontend/src/services/api.js[m
+[36m@@ -9,33 +9,34 @@[m [mconst api = axios.create({[m
+   },[m
+ });[m
+ [m
+[31m-// Analyze a new security event[m
+[31m-export const analyzeEvent = async (eventData) => {[m
+[31m-  const response = await api.post("/events/analyze", eventData);[m
+[31m-  return response.data;[m
+[31m-};[m
+[32m+[m[32m// Login[m
+[32m+[m[32mexport const login = async (email, password) => {[m
+[32m+[m[32m  const response = await api.post("/auth/login", {[m
+[32m+[m[32m    email,[m
+[32m+[m[32m    password,[m
+[32m+[m[32m  });[m
+ [m
+[31m-// Dashboard data[m
+[31m-export const getDashboard = async () => {[m
+[31m-  const response = await api.get("/dashboard");[m
+   return response.data;[m
+ };[m
+ [m
+[31m-// Identity details[m
+[31m-export const getIdentity = async (id) => {[m
+[31m-  const response = await api.get(`/identities/${id}`);[m
+[31m-  return response.data;[m
+[32m+[m[32m// Attach JWT to protected requests[m
+[32m+[m[32mexport const setAuthToken = (token) => {[m
+[32m+[m[32m  if (token) {[m
+[32m+[m[32m    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;[m
+[32m+[m[32m  } else {[m
+[32m+[m[32m    delete api.defaults.headers.common["Authorization"];[m
+[32m+[m[32m  }[m
+ };[m
+ [m
+[31m-// Investigation / analysis details[m
+[31m-export const getAnalysis = async (id) => {[m
+[31m-  const response = await api.get(`/analysis/${id}`);[m
+[32m+[m[32m// Get all identities[m
+[32m+[m[32mexport const getIdentities = async () => {[m
+[32m+[m[32m  const 
