@@ -2,45 +2,27 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const prisma = require("./lib/prisma");
+const healthRoutes = require("./routes/healthRoutes");
+const authRoutes = require("./routes/authRoutes");
+const identityRoutes = require("./routes/identityRoutes");
+
+const { idexSecurityMiddleware } = require("./middleware/idexSecurityMiddleware");
 
 const app = express();
 
+// Global middleware
 app.use(cors());
 app.use(express.json());
 
-// Health check
-app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    service: "IDeX Backend"
-  });
-});
+// IDeX Security Middleware
+// Host applications can send an `idexEvent` in the request body.
+// IDeX analyzes the event before the request reaches the route.
+app.use(idexSecurityMiddleware);
 
-// Database connection test
-app.get("/db-test", async (req, res) => {
-  try {
-    const result = await prisma.$queryRaw`SELECT 1 AS connected`;
-
-    const safeResult = result.map((row) => ({
-      connected: Number(row.connected)
-    }));
-
-    res.json({
-      status: "OK",
-      database: "MySQL",
-      prisma: "Connected",
-      result: safeResult
-    });
-  } catch (error) {
-    console.error("Database connection failed:", error);
-
-    res.status(500).json({
-      status: "ERROR",
-      message: "Database connection failed"
-    });
-  }
-});
+// Routes
+app.use("/", healthRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/identities", identityRoutes);
 
 const PORT = process.env.PORT || 5000;
 
