@@ -18,7 +18,9 @@ def extract_entities(text: str) -> dict:
         "LOCATION": [],
         "ORGANIZATION": [],
         "PHONE": [],
-        "VEHICLE": []
+        "VEHICLE": [],
+        "FIR_CASE_ID": [],
+        "MONEY": []
     }
 
     # spaCy entities
@@ -32,15 +34,38 @@ def extract_entities(text: str) -> dict:
         elif ent.label_ == "ORG":
             entities["ORGANIZATION"].append(ent.text)
 
-    # Phone number detection using Regex
+    # Phone numbers
     phone_pattern = r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b"
+    entities["PHONE"].extend(
+        re.findall(phone_pattern, text)
+    )
 
-    phones = re.findall(phone_pattern, text)
+    # Indian vehicle registration numbers
+    vehicle_pattern = r"\b[A-Z]{2}\s?\d{1,2}\s?[A-Z]{1,3}\s?\d{4}\b"
+    entities["VEHICLE"].extend(
+        re.findall(vehicle_pattern, text, re.IGNORECASE)
+    )
 
-    entities["PHONE"].extend(phones)
+    # FIR / Case IDs
+    case_pattern = r"\b(?:FIR|CASE)[-\s]?\d{1,6}(?:/\d{2,4})?\b"
+    entities["FIR_CASE_ID"].extend(
+        re.findall(case_pattern, text, re.IGNORECASE)
+    )
 
-    # Remove duplicates while preserving order
+    # Money amounts
+    money_pattern = r"(?:₹|Rs\.?|INR)\s?\d+(?:,\d{2,3})*(?:\.\d{1,2})?"
+    entities["MONEY"].extend(
+        re.findall(money_pattern, text, re.IGNORECASE)
+    )
+
+    # Clean and remove duplicates
     for key in entities:
-        entities[key] = list(dict.fromkeys(entities[key]))
+        entities[key] = list(
+            dict.fromkeys(
+                item.strip()
+                for item in entities[key]
+                if item.strip()
+            )
+        )
 
     return entities
