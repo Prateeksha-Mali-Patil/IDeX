@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String   @default("ANALYST")
+  createdAt DateTime @default(now())
+
+  identities Identity[]
+}
+
+model Identity {
+  id        String   @id
+  userId    Int
+  createdAt DateTime @default(now())
+  status    String   @default("ACTIVE")
+
+  user      User     @relation(fields: [userId], references: [id])
+  devices   IdentityDevice[]
+  ips       IdentityIP[]
+  activities Activity[]
+  events    SecurityEvent[]
+  indicators RiskIndicator[]
+  relationships Relationship[] @relation("IdentityRelationships")
+}
+
+model Device {
+  id        String   @id
+  createdAt DateTime @default(now())
+
+  identities IdentityDevice[]
+}
+
+model IdentityDevice {
+  identityId String
+  deviceId   String
+
+  identity Identity @relation(fields: [identityId], references: [id])
+  device   Device   @relation(fields: [deviceId], references: [id])
+
+  @@id([identityId, deviceId])
+}
+
+model IPAddress {
+  id        String   @id
+  address   String   @unique
+  createdAt DateTime @default(now())
+
+  identities IdentityIP[]
+}
+
+model IdentityIP {
+  identityId String
+  ipId       String
+
+  identity Identity  @relation(fields: [identityId], references: [id])
+  ip        IPAddress @relation(fields: [ipId], references: [id])
+
+  @@id([identityId, ipId])
+}
+
+model Activity {
+  id         Int      @id @default(autoincrement())
+  identityId String
+  timestamp  DateTime
+  action     String
+  location   String?
+  riskScore  Int?
+
+  identity Identity @relation(fields: [identityId], references: [id])
+}
+
+model SecurityEvent {
+  id           Int      @id @default(autoincrement())
+  eventId      String   @unique
+  identityId   String
+  timestamp    DateTime
+  ip           String?
+  deviceId     String?
+  location     String?
+  userAgent    String?
+  failedLogins Int      @default(0)
+  loginVelocity Int     @default(0)
+  riskScore    Int?
+  decision     String?
+
+  identity Identity @relation(fields: [identityId], references: [id])
+}
+
+model RiskIndicator {
+  id         Int      @id @default(autoincrement())
+  identityId String
+  name       String
+  score      Int
+  severity   String
+  evidence   String?
+
+  identity Identity @relation(fields: [identityId], references: [id])
+}
+
+model Relationship {
+  id           Int      @id @default(autoincrement())
+  identityId   String
+  relatedId    String
+  relationshipType String
+  weight       Int      @default(1)
+
+  identity Identity @relation("IdentityRelationships", fields: [identityId], references: [id])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  actor     String?
+  details   String?
+  createdAt DateTime @default(now())
+}
