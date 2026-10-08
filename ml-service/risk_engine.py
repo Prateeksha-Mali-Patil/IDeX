@@ -19,7 +19,9 @@ def calculate_risk(event: Any) -> dict:
             "name": "NEW_DEVICE",
             "score": points,
             "severity": "MEDIUM",
-            "evidence": f"Device {event.deviceId} is not recognized for this identity."
+            "evidence": (
+                f"Device {event.deviceId} is not recognized for this identity."
+            )
         })
 
         reasons.append(
@@ -55,7 +57,8 @@ def calculate_risk(event: Any) -> dict:
         })
 
         reasons.append(
-            f"Multiple failed authentication attempts ({event.failedLogins}) detected."
+            f"Multiple failed authentication attempts "
+            f"({event.failedLogins}) detected."
         )
 
     # 4. High login velocity
@@ -67,7 +70,10 @@ def calculate_risk(event: Any) -> dict:
             "name": "HIGH_LOGIN_VELOCITY",
             "score": points,
             "severity": "HIGH",
-            "evidence": f"Login velocity is {event.loginVelocity} attempts/minute."
+            "evidence": (
+                f"Login velocity is "
+                f"{event.loginVelocity} attempts/minute."
+            )
         })
 
         reasons.append(
@@ -83,7 +89,10 @@ def calculate_risk(event: Any) -> dict:
             "name": "BEHAVIOUR_ANOMALY",
             "score": points,
             "severity": "HIGH",
-            "evidence": "User behaviour differs significantly from the expected activity pattern."
+            "evidence": (
+                "User behaviour differs significantly from "
+                "the expected activity pattern."
+            )
         })
 
         reasons.append(
@@ -104,7 +113,7 @@ def calculate_risk(event: Any) -> dict:
         risk_level = "LOW"
         decision = "ALLOW"
 
-    # Confidence based on number of independent signals
+    # Confidence based on number and severity of signals
     signal_count = len(indicators)
 
     if signal_count >= 4:
@@ -117,6 +126,16 @@ def calculate_risk(event: Any) -> dict:
         confidence = 0.60
     else:
         confidence = 0.50
+
+    # Increase confidence when multiple high-severity indicators exist
+    high_severity_count = sum(
+        1
+        for indicator in indicators
+        if indicator["severity"] == "HIGH"
+    )
+
+    if high_severity_count >= 2:
+        confidence = min(confidence + 0.05, 0.99)
 
     return {
         "riskScore": score,
