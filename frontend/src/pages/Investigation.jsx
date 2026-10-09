@@ -1,405 +1,280 @@
-import "../App.css";
-import RelationshipGraph from "../components/RelationshipGraph";
+import { useEffect, useState } from "react";
+import { getIdentity } from "../services/api";
 
-function Investigation() {
-  return (
-    <div className="investigation-page">
+function Investigation({ identityId }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-      {/* TOP BAR */}
-      <div className="investigation-topbar">
-        <div>
-          <span className="eyebrow">
-            SECURITY / INVESTIGATION
-          </span>
+  useEffect(() => {
+    const loadIdentity = async () => {
+      if (!identityId) {
+        setError("No Identity ID selected.");
+        setLoading(false);
+        return;
+      }
 
-          <h1>Identity Investigation</h1>
-        </div>
+      try {
+        setLoading(true);
+        setError("");
 
-        <div className="investigation-status">
-          <span className="status-dot"></span>
-          LIVE ANALYSIS
+        const identity = await getIdentity(identityId);
+        setData(identity);
+      } catch (err) {
+        console.error("Failed to load identity:", err);
+
+        setData(null);
+        setError(
+          err.response?.data?.message ||
+            "Unable to load identity data from the backend."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadIdentity();
+  }, [identityId]);
+
+  if (loading) {
+    return (
+      <div className="console-content">
+        <div className="page-header">
+          <div>
+            <p className="eyebrow">IDENTITY INVESTIGATION</p>
+            <h1>Loading...</h1>
+            <p className="page-subtitle">
+              Loading identity risk analysis for{" "}
+              <strong>{identityId}</strong>
+            </p>
+          </div>
         </div>
       </div>
+    );
+  }
 
+  if (error || !data) {
+    return (
+      <div className="console-content">
+        <div className="page-header">
+          <div>
+            <p className="eyebrow">IDENTITY INVESTIGATION</p>
+            <h1>Identity Not Found</h1>
+            <p className="page-subtitle">
+              Unable to load investigation data for{" "}
+              <strong>{identityId}</strong>
+            </p>
+          </div>
+        </div>
 
-      {/* IDENTITY HEADER */}
-      <div className="investigation-header">
+        <div className="not-found-card">
+          <h2>Unable to load identity</h2>
+          <p>{error || "No identity data was returned by the backend."}</p>
+        </div>
+      </div>
+    );
+  }
 
+  // Backend data
+  const indicators = data.indicators || [];
+  const relationships = data.relationships || [];
+
+  // Device from Prisma relation
+  const device =
+    data.devices?.[0]?.device?.id ||
+    data.devices?.[0]?.deviceId ||
+    "N/A";
+
+  // IP from Prisma relation
+  const ip =
+    data.ips?.[0]?.ip?.address ||
+    data.ips?.[0]?.ipId ||
+    "N/A";
+
+  // Calculate risk score from indicators
+  const score = indicators.reduce(
+    (total, indicator) => total + (indicator.score || 0),
+    0
+  );
+
+  // Determine risk level
+  let level = "LOW";
+
+  if (score >= 60) {
+    level = "HIGH";
+  } else if (score >= 30) {
+    level = "MEDIUM";
+  }
+
+  // Determine decision
+  let decision = "ALLOW";
+
+  if (level === "HIGH") {
+    decision = "BLOCK";
+  } else if (level === "MEDIUM") {
+    decision = "CHALLENGE_REVIEW";
+  }
+
+  return (
+    <div className="console-content">
+
+      {/* HEADER */}
+      <div className="page-header">
         <div>
-          <span className="eyebrow">
-            IDENTITY UNDER REVIEW
-          </span>
+          <p className="eyebrow">IDENTITY INVESTIGATION</p>
 
-          <h2>ID-047</h2>
+          <h1>{data.id}</h1>
 
-          <p>
-            Identity risk investigation and correlated activity analysis
+          <p className="page-subtitle">
+            Identity risk analysis and relationship investigation
           </p>
         </div>
 
-
-        <div className="investigation-risk">
-          <span>HIGH RISK</span>
-
-          <strong>91</strong>
-
-          <small>/100</small>
+        <div
+          className={`investigation-decision ${level.toLowerCase()}`}
+        >
+          {decision}
         </div>
-
       </div>
 
+      {/* RISK OVERVIEW */}
+      <div className="investigation-overview">
 
-      {/* DECISION */}
-      <div className="decision-banner">
+        <div className={`big-risk-card ${level.toLowerCase()}`}>
+          <span>RISK SCORE</span>
 
-        <div>
-          <span className="eyebrow">
-            RECOMMENDED DECISION
-          </span>
+          <div className="big-risk-score">
+            {score}
+            <small>/100</small>
+          </div>
 
-          <h2>BLOCK / REVIEW</h2>
+          <strong>{level} RISK</strong>
         </div>
 
+        <div className="identity-details-card">
+          <h2>Identity Details</h2>
 
-        <div className="confidence">
+          <div className="detail-grid">
+
+            <div>
+              <span>IDENTITY ID</span>
+              <strong>{data.id}</strong>
+            </div>
+
+            <div>
+              <span>DEVICE</span>
+              <strong>{device}</strong>
+            </div>
+
+            <div>
+              <span>IP ADDRESS</span>
+              <strong>{ip}</strong>
+            </div>
+
+            <div>
+              <span>STATUS</span>
+              <strong>{data.status}</strong>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* RISK INDICATORS */}
+      <div className="dashboard-section">
+        <div className="section-title">
+          <h2>Risk Indicators</h2>
 
           <span>
-            ANALYSIS CONFIDENCE
+            {indicators.length} DETECTED
           </span>
-
-          <strong>
-            92%
-          </strong>
-
         </div>
 
+        <div className="investigation-indicators">
+
+          {indicators.length > 0 ? (
+            indicators.map((indicator) => (
+              <div
+                className="investigation-indicator"
+                key={indicator.id}
+              >
+                <div className="indicator-top">
+
+                  <h3>{indicator.name}</h3>
+
+                  <span
+                    className={`severity ${(
+                      indicator.severity || "MEDIUM"
+                    ).toLowerCase()}`}
+                  >
+                    {indicator.severity}
+                  </span>
+
+                </div>
+
+                <p>
+                  {indicator.evidence ||
+                    "No evidence description available."}
+                </p>
+
+                <small>
+                  Risk contribution: +{indicator.score}
+                </small>
+              </div>
+            ))
+          ) : (
+            <div className="investigation-indicator">
+
+              <div className="indicator-top">
+                <h3>No risk indicators</h3>
+
+                <span className="severity low">
+                  LOW
+                </span>
+              </div>
+
+              <p>
+                No active risk indicators were returned for this identity.
+              </p>
+
+            </div>
+          )}
+
+        </div>
       </div>
 
+      {/* IDENTITY RELATIONSHIPS */}
+      <div className="dashboard-section">
 
-      {/* INFORMATION GRID */}
-      <div className="investigation-grid">
+        <div className="section-title">
+          <h2>Identity Relationships</h2>
 
-        <div className="investigation-card">
-
-          <span className="eyebrow">
-            IDENTITY
-          </span>
-
-          <h3>
-            ID-047
-          </h3>
-
-          <p>
-            Primary identity under investigation
-          </p>
-
+          <span>NETWORK ANALYSIS</span>
         </div>
 
-
-        <div className="investigation-card">
-
-          <span className="eyebrow">
-            DEVICE
-          </span>
-
-          <h3>
-            DEV-8841
-          </h3>
-
-          <p>
-            New device association detected
-          </p>
-
-        </div>
-
-
-        <div className="investigation-card">
-
-          <span className="eyebrow">
-            IP ADDRESS
-          </span>
-
-          <h3>
-            •••.•••.24.91
-          </h3>
-
-          <p>
-            Associated with unusual events
-          </p>
-
-        </div>
-
-
-        <div className="investigation-card">
-
-          <span className="eyebrow">
-            LOCATION
-          </span>
-
-          <h3>
-            Bengaluru, IN
-          </h3>
-
-          <p>
-            Current event location
-          </p>
-
-        </div>
-
-      </div>
-
-
-      {/* SIGNAL ANALYSIS */}
-      <div className="evidence-section">
-
-        <div className="section-heading">
+        <div className="relationship-summary">
 
           <div>
-
-            <span className="eyebrow">
-              DETECTION ENGINE
-            </span>
-
-            <h2>
-              Evidence & Signal Analysis
-            </h2>
-
+            <span>CONNECTED DEVICE</span>
+            <strong>{device}</strong>
           </div>
-
-        </div>
-
-
-        <div className="evidence-list">
-
-          <div className="evidence-row">
-
-            <div className="evidence-icon danger">
-              !
-            </div>
-
-            <div>
-
-              <strong>
-                Behaviour anomaly
-              </strong>
-
-              <p>
-                Significant deviation from baseline activity
-              </p>
-
-            </div>
-
-            <strong className="evidence-score">
-              +24
-            </strong>
-
-          </div>
-
-
-          <div className="evidence-row">
-
-            <div className="evidence-icon danger">
-              ↗
-            </div>
-
-            <div>
-
-              <strong>
-                Suspicious IP
-              </strong>
-
-              <p>
-                Associated with multiple unusual events
-              </p>
-
-            </div>
-
-            <strong className="evidence-score">
-              +21
-            </strong>
-
-          </div>
-
-
-          <div className="evidence-row">
-
-            <div className="evidence-icon warning">
-              ϟ
-            </div>
-
-            <div>
-
-              <strong>
-                Login velocity
-              </strong>
-
-              <p>
-                7 attempts detected within 90 seconds
-              </p>
-
-            </div>
-
-            <strong className="evidence-score">
-              +18
-            </strong>
-
-          </div>
-
-
-          <div className="evidence-row">
-
-            <div className="evidence-icon warning">
-              ◇
-            </div>
-
-            <div>
-
-              <strong>
-                New device
-              </strong>
-
-              <p>
-                Device has no previous identity association
-              </p>
-
-            </div>
-
-            <strong className="evidence-score">
-              +12
-            </strong>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* TIMELINE */}
-      <div className="timeline-section">
-
-        <div className="section-heading">
 
           <div>
-
-            <span className="eyebrow">
-              EVENT HISTORY
-            </span>
-
-            <h2>
-              Activity Timeline
-            </h2>
-
+            <span>IP ADDRESS</span>
+            <strong>{ip}</strong>
           </div>
-
-        </div>
-
-
-        <div className="timeline">
-
-          <div className="timeline-item">
-
-            <span className="timeline-dot"></span>
-
-            <div>
-
-              <strong>
-                Multiple login attempts detected
-              </strong>
-
-              <p>
-                7 attempts within 90 seconds
-              </p>
-
-            </div>
-
-            <time>
-              12:04:21
-            </time>
-
-          </div>
-
-
-          <div className="timeline-item">
-
-            <span className="timeline-dot"></span>
-
-            <div>
-
-              <strong>
-                New device observed
-              </strong>
-
-              <p>
-                DEV-8841 linked to identity ID-047
-              </p>
-
-            </div>
-
-            <time>
-              12:03:48
-            </time>
-
-          </div>
-
-
-          <div className="timeline-item">
-
-            <span className="timeline-dot"></span>
-
-            <div>
-
-              <strong>
-                Risk engine analysis completed
-              </strong>
-
-              <p>
-                Risk score calculated as 91/100
-              </p>
-
-            </div>
-
-            <time>
-              12:03:12
-            </time>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* RELATIONSHIP GRAPH */}
-      <div className="graph-section">
-
-        <div className="section-heading">
 
           <div>
-
-            <span className="eyebrow">
-              NETWORKX ANALYSIS
-            </span>
-
-            <h2>
-              Identity Relationships
-            </h2>
-
+            <span>RELATED IDENTITIES</span>
+            <strong>{relationships.length}</strong>
           </div>
 
-          <span className="graph-label">
-            RELATIONSHIP INTELLIGENCE
-          </span>
+          <div>
+            <span>ACCOUNT STATUS</span>
+            <strong>{data.status}</strong>
+          </div>
 
         </div>
-
-
-        <div className="graph-placeholder">
-
-          <RelationshipGraph />
-
-        </div>
-
       </div>
 
     </div>
