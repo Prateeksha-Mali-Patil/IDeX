@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getEvents, getIdentities } from "../services/api";
 
 function Dashboard({ onSearchIdentity }) {
   const [identityId, setIdentityId] = useState("");
+  const [identities, setIdentities] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const handleSearch = () => {
     const id = identityId.trim().toUpperCase();
@@ -13,6 +17,57 @@ function Dashboard({ onSearchIdentity }) {
 
     onSearchIdentity(id);
   };
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+
+        const [identityData, eventData] = await Promise.all([
+          getIdentities(),
+          getEvents(),
+        ]);
+
+        setIdentities(
+          Array.isArray(identityData) ? identityData : []
+        );
+
+        setEvents(
+          Array.isArray(eventData) ? eventData : []
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load dashboard data:",
+          error
+        );
+
+        setIdentities([]);
+        setEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
+  const getRiskLevel = (riskScore) => {
+    if (riskScore >= 70) return "HIGH";
+    if (riskScore >= 40) return "MEDIUM";
+    return "LOW";
+  };
+
+  const highRiskCount = events.filter(
+    (event) => Number(event.riskScore || 0) >= 70
+  ).length;
+
+  const challengedCount = events.filter(
+    (event) => event.decision === "CHALLENGE"
+  ).length;
+
+  const relationshipsCount = 3;
+
+  const recentEvents = events.slice(0, 5);
 
   return (
     <div className="console-content">
@@ -67,9 +122,11 @@ function Dashboard({ onSearchIdentity }) {
           <button onClick={() => setIdentityId("ID-047")}>
             ID-047
           </button>
+
           <button onClick={() => setIdentityId("ID-025")}>
             ID-025
           </button>
+
           <button onClick={() => setIdentityId("ID-001")}>
             ID-001
           </button>
@@ -80,26 +137,50 @@ function Dashboard({ onSearchIdentity }) {
       <div className="dashboard-grid">
 
         <div className="dashboard-card">
-          <span className="card-label">IDENTITIES MONITORED</span>
-          <strong>1,284</strong>
+          <span className="card-label">
+            IDENTITIES MONITORED
+          </span>
+
+          <strong>
+            {loading ? "..." : identities.length}
+          </strong>
+
           <small>Active identities</small>
         </div>
 
         <div className="dashboard-card">
-          <span className="card-label">HIGH RISK</span>
-          <strong>42</strong>
+          <span className="card-label">
+            HIGH RISK
+          </span>
+
+          <strong>
+            {loading ? "..." : highRiskCount}
+          </strong>
+
           <small>Require investigation</small>
         </div>
 
         <div className="dashboard-card">
-          <span className="card-label">CHALLENGED</span>
-          <strong>118</strong>
+          <span className="card-label">
+            CHALLENGED
+          </span>
+
+          <strong>
+            {loading ? "..." : challengedCount}
+          </strong>
+
           <small>Additional verification</small>
         </div>
 
         <div className="dashboard-card">
-          <span className="card-label">RELATIONSHIPS</span>
-          <strong>3,921</strong>
+          <span className="card-label">
+            RELATIONSHIPS
+          </span>
+
+          <strong>
+            {loading ? "..." : relationshipsCount}
+          </strong>
+
           <small>Identity connections</small>
         </div>
 
@@ -107,6 +188,7 @@ function Dashboard({ onSearchIdentity }) {
 
       {/* RECENT ACTIVITY */}
       <div className="dashboard-section">
+
         <div className="section-title">
           <h2>Recent Risk Events</h2>
           <span>LIVE</span>
@@ -114,38 +196,78 @@ function Dashboard({ onSearchIdentity }) {
 
         <div className="recent-events">
 
-          <div className="event-row">
-            <div>
-              <strong>ID-047</strong>
-              <span>Suspicious login activity</span>
+          {loading && (
+            <div className="event-row">
+              <div>
+                <strong>Loading...</strong>
+                <span>
+                  Fetching recent security events
+                </span>
+              </div>
             </div>
-            <div className="event-risk high">
-              91 HIGH
-            </div>
-            <div>BLOCK / REVIEW</div>
-          </div>
+          )}
 
-          <div className="event-row">
-            <div>
-              <strong>ID-025</strong>
-              <span>Unusual login velocity</span>
+          {!loading && recentEvents.length === 0 && (
+            <div className="event-row">
+              <div>
+                <strong>No risk events</strong>
+                <span>
+                  No security events are currently available.
+                </span>
+              </div>
             </div>
-            <div className="event-risk medium">
-              56 MEDIUM
-            </div>
-            <div>CHALLENGE</div>
-          </div>
+          )}
 
-          <div className="event-row">
-            <div>
-              <strong>ID-001</strong>
-              <span>Normal authentication</span>
-            </div>
-            <div className="event-risk low">
-              18 LOW
-            </div>
-            <div>ALLOW</div>
-          </div>
+          {!loading &&
+            recentEvents.map((event) => {
+              const riskScore = Number(
+                event.riskScore || 0
+              );
+
+              const riskLevel =
+                getRiskLevel(riskScore);
+
+              let description =
+                "Security event detected";
+
+              if (riskLevel === "HIGH") {
+                description =
+                  "High-risk authentication activity";
+              } else if (riskLevel === "MEDIUM") {
+                description =
+                  "Unusual authentication activity";
+              } else {
+                description =
+                  "Normal authentication activity";
+              }
+
+              return (
+                <div
+                  className="event-row"
+                  key={event.eventId || event.id}
+                >
+                  <div>
+                    <strong>
+                      {event.identityId || "UNKNOWN"}
+                    </strong>
+
+                    <span>
+                      {description}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`event-risk ${riskLevel.toLowerCase()}`}
+                  >
+                    {riskScore} {riskLevel}
+                  </div>
+
+                  <div>
+                    {event.decision || "PENDING"}
+                  </div>
+                </div>
+              );
+            })}
 
         </div>
       </div>
